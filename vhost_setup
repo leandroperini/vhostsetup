@@ -1,0 +1,170 @@
+#!/bin/bash
+#@author Leandro Perini Bortoletto
+#@email leandro.bortoletto@multilaser.com.br
+clear
+nome_user=""
+url=""
+default_url=".local"
+nome_pasta=""
+confirma_criar=""
+prosseguir=""
+
+function validaresposta {
+	local confirma_criar
+	if [ "$1" = "s" ] || [ "$1" = "S" ]; then
+        	confirma_criar="s"		
+	elif [ "$1" = "n" ] || [ "$1" = "N" ]; then
+        	confirma_criar="n"
+	fi 
+	echo $confirma_criar
+}
+
+function criarusuario {
+	clear
+	local user
+	user="$1"
+	local senha
+	local senha2
+	echo "Criando usuário $user"
+	echo ""
+	adduser $user
+	echo "Pressione qualquer tecla para continuar"
+	read t
+	#echo -n "Usuário $user criado, insira uma senha: "
+	#read -s senha
+	#clear
+	#echo -n "Repita a senha: "
+	#read -s senha2
+	#while [ "$senha" != "$senha2" ]; do
+	#clear
+	#	echo "Senhas não são iguais."
+	#	echo -n "Insira a senha: "
+	#	read -s senha
+	#	clear
+	#	echo -n "Repita a senha: "
+	#	read -s senha2
+	#done
+	#passwd "$senha"	
+	#echo "$senha"
+} 
+
+function criarpasta {	
+	local user
+	user="$1"
+	local pasta
+	pasta="$2"
+	echo "Criando pasta $pasta"
+	mkdir -p /home/$user/$pasta
+	chown www-data:www-data -Rf /home/$user/$pasta
+	chmod 775 -Rf /home/$user/$pasta
+	touch "/home/$user/$pasta/index.php"
+	echo "<?php echo 'O ambiente $pasta de $user está funcionando';" >> "/home/$user/$pasta/index.php"
+	echo "Pressione qualquer tecla para continuar"
+	read t
+} 
+function sair {
+	clear
+	exit
+} 
+function criarvhost {
+	clear
+	local url
+	local user
+	local myip
+	local conf_file
+	url="$2"
+	user="$1"
+	myip=$(ip addr | grep 'state UP' -A2 | tail -n1 | awk '{print $2}' | cut -f1  -d'/')
+	conf_file="/etc/apache2/sites-available/$url.conf"
+	echo "$conf_file"
+	mkdir -p "/home/$user/log/"
+	echo 	"
+<VirtualHost *:80>
+	ServerAdmin email@example.com
+	DocumentRoot /home/$user/$url/
+	ServerName $url
+	Errorlog /home/$user/log/error-$url.log
+	CustomLog /home/$user/log/access-$url.log #combined
+	DirectoryIndex index.php
+	<Directory /home/$user/$url/>
+		Options Indexes FollowSymLinks MultiViews
+		AllowOverride all
+		Order allow,deny
+		allow from all    
+		Require all granted
+	</Directory> 
+</VirtualHost>
+" >> "$conf_file"
+
+	a2ensite "$url.conf"
+	service apache2 restart
+	clear
+	echo "Vhost criado, lembre-se de adicionar a linha abaixo no seu arquivo de hosts:"
+	echo ""
+	echo "$myip $url"
+	echo ''
+	echo "Pressione qualquer tecla para continuar"
+	read t
+} 
+function menu {
+	clear
+	opcao	
+	while [ "opcao" != "4" ]; do
+		clear
+		echo "Selecione a opção que deseja:"
+		echo "1 - Criar novo usuário"
+		echo "2 - Criar ambiente para usuário existente"
+		echo "3 - Criar novo usuário e ambiente"
+		echo "4 - Sair"
+		read -e -n 1 opcao
+		if [[ "$opcao" -eq 1 ]]; then
+				clear
+				echo -n "Insira o nome do usuário: "
+				read -e nome_user
+				criarusuario $nome_user				
+		elif [[ "$opcao" -eq 2 ]]; then
+			clear
+			echo -n "Insira o nome do usuário: "
+			read -e nome_user
+			clear
+			echo -n "Deseja criar o dominio padrão? (default: $nome_user$default_url) (s/n)"
+			read -e -n 1 prosseguir
+			clear
+
+			if [ $(validaresposta "$prosseguir") = "s" ]; then
+				nome_pasta="$nome_user$default_url"
+			else
+				echo -n "Insira a nova url: "
+				read -e url
+				nome_pasta=$url
+			fi
+			criarpasta $nome_user $nome_pasta
+			criarvhost $nome_user $nome_pasta			
+			
+		elif [[ "$opcao" -eq 3 ]]; then
+				clear
+				echo -n "Insira o nome do usuário: "
+				read -e nome_user
+				criarusuario $nome_user
+				clear
+				echo -n "Deseja criar o dominio padrão? (default: $nome_user$default_url) (s/n)"
+				read -e -n 1 prosseguir
+				clear
+
+				if [ $(validaresposta "$prosseguir") = "s" ]; then
+					nome_pasta="$nome_user$default_url"
+				else
+					echo -n "Insira a nova url: "
+					read -e url
+					nome_pasta="$url"
+				fi
+				criarpasta $nome_user $nome_pasta				
+				criarvhost $nome_user $nome_pasta
+		elif [[ "$opcao" -eq 4 ]]; then
+			sair
+		else
+			sair
+		fi
+	done
+} 
+menu
