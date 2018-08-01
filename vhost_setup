@@ -1,6 +1,5 @@
 #!/bin/bash
-#@author Leandro Perini Bortoletto
-#@email leandro.bortoletto@multilaser.com.br
+#@author leandroperini
 clear
 nome_user=""
 url=""
